@@ -110,7 +110,7 @@ export function useRealtime(roundId: string | null, currentUser: User | null) {
         }
       )
       .subscribe((status) => {
-        console.log("📡 Items channel subscription status:", status);
+        console.log("📡 Items channel subscription status:", status, "roundId:", roundId);
       });
 
     // Presence channel for online users (per round to avoid conflicts)
