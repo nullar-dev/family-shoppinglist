@@ -19,16 +19,41 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const supabase = createClient();
 
   useEffect(() => {
-    // Check for existing session
+    // Check for existing session and validate it
     const checkUser = async () => {
       const storedUser = localStorage.getItem("gezins_user");
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+      const storedSessionId = localStorage.getItem("gezins_session_id");
+
+      if (storedUser && storedSessionId) {
+        const parsedUser = JSON.parse(storedUser);
+
+        // Validate session against database
+        const { data, error } = await supabase
+          .from("users")
+          .select("session_id")
+          .eq("id", parsedUser.id)
+          .single();
+
+        if (error || !data) {
+          // User not found, clear session
+          localStorage.removeItem("gezins_user");
+          localStorage.removeItem("gezins_session_id");
+        } else if (data.session_id !== storedSessionId) {
+          // Session ID doesn't match - another device logged in
+          localStorage.removeItem("gezins_user");
+          localStorage.removeItem("gezins_session_id");
+          setUser(null);
+          setLoading(false);
+          return;
+        } else {
+          // Session valid
+          setUser(parsedUser);
+        }
       }
       setLoading(false);
     };
     checkUser();
-  }, []);
+  }, [supabase]);
 
   const signIn = async (name: string, pin: string) => {
     try {
@@ -43,6 +68,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "Ongeldige naam of PIN" };
       }
 
+      // Generate new session ID to invalidate any other sessions
+      const newSessionId = crypto.randomUUID();
+
+      // Update session_id in database
+      await supabase
+        .from("users")
+        .update({ session_id: newSessionId })
+        .eq("id", data.id);
+
       const user: User = {
         id: data.id,
         name: data.name,
@@ -52,6 +86,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       };
 
       localStorage.setItem("gezins_user", JSON.stringify(user));
+      localStorage.setItem("gezins_session_id", newSessionId);
       setUser(user);
       return { success: true };
     } catch (error) {
@@ -61,6 +96,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     localStorage.removeItem("gezins_user");
+    localStorage.removeItem("gezins_session_id");
     setUser(null);
   };
 

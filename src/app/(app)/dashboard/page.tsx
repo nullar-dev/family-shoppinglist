@@ -20,7 +20,6 @@ export default function DashboardPage() {
   );
   const [newItemName, setNewItemName] = useState("");
   const [newItemQuantity, setNewItemQuantity] = useState(1);
-  const [newItemPrice, setNewItemPrice] = useState("");
   const [addingItem, setAddingItem] = useState(false);
   const [requestingItem, setRequestingItem] = useState(false);
   const [showOnlineDropdown, setShowOnlineDropdown] = useState(false);
@@ -89,14 +88,12 @@ export default function DashboardPage() {
         round_id: roundId,
         name: itemName,
         quantity: newItemQuantity,
-        estimated_price: newItemPrice ? parseFloat(newItemPrice) : null,
         created_by_user_id: user.id,
       });
     }
 
     setNewItemName("");
     setNewItemQuantity(1);
-    setNewItemPrice("");
     setAddingItem(false);
   };
 
@@ -587,17 +584,6 @@ export default function DashboardPage() {
                   onChange={(e) => setNewItemQuantity(parseInt(e.target.value) || 1)}
                   className="w-20 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
-                {canShop && (
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={newItemPrice}
-                    onChange={(e) => setNewItemPrice(e.target.value)}
-                    placeholder="Prijs (optioneel)"
-                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                )}
                 <button
                   type="submit"
                   disabled={(canShop ? addingItem : requestingItem) || !newItemName.trim()}
