@@ -18,6 +18,14 @@ export default function DashboardPage() {
     roundId,
     user
   );
+  // Local state for items to enable smooth animations on delete
+  const [localItems, setLocalItems] = useState<Item[]>([]);
+
+  // Sync local items with realtime items
+  useEffect(() => {
+    setLocalItems(items);
+  }, [items]);
+
   const [newItemName, setNewItemName] = useState("");
   const [newItemQuantity, setNewItemQuantity] = useState(1);
   const [addingItem, setAddingItem] = useState(false);
@@ -38,9 +46,9 @@ export default function DashboardPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Separate requested items from active items
-  const requestedItems = items.filter((item) => item.status === "requested");
-  const activeItems = items.filter((item) => item.status === "active");
+  // Separate requested items from active items (using local state for animation)
+  const requestedItems = localItems.filter((item) => item.status === "requested");
+  const activeItems = localItems.filter((item) => item.status === "active");
 
   const isShopper = round?.locked_by_user_id === user?.id;
   const isSomeoneShopping = round?.state === "LOCKED";
@@ -54,18 +62,13 @@ export default function DashboardPage() {
   const canToggleCartVisible = isSomeoneShopping;
   // canDeleteItem: in OPEN state user can delete their own items, in LOCKED only shopper can delete
   const canDeleteItem = (item: Item) => {
-    console.log("canDeleteItem check:", { userId: user?.id, itemOwnerId: item.created_by_user_id, isSomeoneShopping, isShopper });
     if (!user) return false;
     if (!isSomeoneShopping) {
       // OPEN state: user can delete their own items
-      const canDelete = item.created_by_user_id === user.id;
-      console.log("OPEN state - canDelete:", canDelete);
-      return canDelete;
+      return item.created_by_user_id === user.id;
     }
     // LOCKED state: only shopper can delete
-    const canDelete = isShopper;
-    console.log("LOCKED state - canDelete:", canDelete);
-    return canDelete;
+    return isShopper;
   };
 
   // Enable notifications
@@ -128,11 +131,10 @@ export default function DashboardPage() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    console.log("Deleting item:", itemId);
-    const { error } = await supabase.from("items").delete().eq("id", itemId);
-    if (error) {
-      console.error("Delete error:", error);
-    }
+    // Optimistically remove from local state to trigger animation
+    setLocalItems((prev) => prev.filter((item) => item.id !== itemId));
+    // Then delete from database
+    await supabase.from("items").delete().eq("id", itemId);
   };
 
   const handleLockRound = async () => {
@@ -492,13 +494,13 @@ export default function DashboardPage() {
         )}
 
         {/* In Winkelwagen - only show when someone is shopping */}
-        {isSomeoneShopping && items.filter(i => i.is_in_cart).length > 0 && (
+        {isSomeoneShopping && localItems.filter(i => i.is_in_cart).length > 0 && (
           <section className="mb-6">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">
-              In winkelwagen ({items.filter(i => i.is_in_cart).length})
+              In winkelwagen ({localItems.filter(i => i.is_in_cart).length})
             </h2>
             <div className="space-y-2 opacity-60">
-              {items.filter(i => i.is_in_cart).map((item) => (
+              {localItems.filter(i => i.is_in_cart).map((item) => (
                 <div key={item.id} className="bg-white dark:bg-gray-800 rounded-lg p-3 flex items-center gap-3">
                   <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
                     <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
