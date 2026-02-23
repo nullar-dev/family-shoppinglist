@@ -148,9 +148,10 @@ export function useCurrentRound() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
-  // Fetch current round
+  // Fetch current round (OPEN or LOCKED, not SETTLED)
   const fetchCurrentRound = useCallback(async () => {
-    const { data: existingRound } = await supabase
+    // First try to find an OPEN round
+    const { data: openRound } = await supabase
       .from("rounds")
       .select("id")
       .eq("state", "OPEN")
@@ -158,21 +159,38 @@ export function useCurrentRound() {
       .limit(1)
       .single();
 
-    if (existingRound) {
-      setRoundId(existingRound.id);
-    } else {
-      // Create new round only if none exists
-      const { data: newRound, error } = await supabase
-        .from("rounds")
-        .insert({ state: "OPEN" })
-        .select("id")
-        .single();
+    if (openRound) {
+      setRoundId(openRound.id);
+      setLoading(false);
+      return;
+    }
 
-      if (newRound) {
-        setRoundId(newRound.id);
-      } else if (error) {
-        console.error("Error creating round:", error);
-      }
+    // If no OPEN round, check for LOCKED round
+    const { data: lockedRound } = await supabase
+      .from("rounds")
+      .select("id")
+      .eq("state", "LOCKED")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (lockedRound) {
+      setRoundId(lockedRound.id);
+      setLoading(false);
+      return;
+    }
+
+    // No OPEN or LOCKED round exists, create new OPEN round
+    const { data: newRound, error } = await supabase
+      .from("rounds")
+      .insert({ state: "OPEN" })
+      .select("id")
+      .single();
+
+    if (newRound) {
+      setRoundId(newRound.id);
+    } else if (error) {
+      console.error("Error creating round:", error);
     }
     setLoading(false);
   }, [supabase]);
