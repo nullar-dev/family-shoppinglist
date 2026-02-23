@@ -123,7 +123,12 @@ export default function DashboardPage() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    await supabase.from("items").delete().eq("id", itemId);
+    if (!confirm("Item verwijderen?")) return;
+    const { error } = await supabase.from("items").delete().eq("id", itemId);
+    if (error) {
+      console.error("Delete failed:", error);
+      alert("Kon item niet verwijderen");
+    }
   };
 
   const handleLockRound = async () => {
