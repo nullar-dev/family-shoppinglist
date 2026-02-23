@@ -90,7 +90,7 @@ export function useRealtime(roundId: string | null, currentUser: User | null) {
           event: "*",
           schema: "public",
           table: "items",
-          filter: `round_id=eq.${roundId}`,
+          // filter: `round_id=eq.${roundId}`, // TEMPORARILY REMOVED TO TEST
         },
         (payload) => {
           console.log("📡 Realtime event:", payload.eventType, payload);
