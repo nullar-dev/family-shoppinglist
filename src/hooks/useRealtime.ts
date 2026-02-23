@@ -103,6 +103,7 @@ export function useRealtime(roundId: string | null, currentUser: User | null) {
             );
           } else if (payload.eventType === "DELETE") {
             // Keep item in array for animation, but mark as deleted via callback
+            console.log("📡 REALTIME DELETE received for item:", payload.old.id);
             setDeletedItemIds((prev) => [...prev, payload.old.id]);
           }
         }

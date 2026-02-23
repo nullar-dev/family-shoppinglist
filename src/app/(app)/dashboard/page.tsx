@@ -24,6 +24,7 @@ export default function DashboardPage() {
 
   // Combine local and remote deleted IDs for animation
   const allDeletedIds = [...new Set([...deletedItemIds, ...localDeletedIds])];
+  console.log("📋 allDeletedIds:", allDeletedIds);
 
   // Simple: use items directly. allDeletedIds tells us what to animate
   const localItems = items;
@@ -133,11 +134,14 @@ export default function DashboardPage() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
+    console.log("🗑️ DELETE clicked for item:", itemId);
     // Add to local deletes for animation
     setLocalDeletedIds(prev => [...prev, itemId]);
+    console.log("✅ Added to localDeletedIds:", itemId);
 
     // Delete from database
     await supabase.from("items").delete().eq("id", itemId);
+    console.log("📡 Delete sent to DB for:", itemId);
 
     // After animation, clean up local state
     setTimeout(() => {
