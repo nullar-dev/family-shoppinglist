@@ -20,10 +20,41 @@ export default function DashboardPage() {
   );
   // Local state for items to enable smooth animations on delete
   const [localItems, setLocalItems] = useState<Item[]>([]);
+  // Track items being deleted (for animation)
+  const [deletingItems, setDeletingItems] = useState<Set<string>>(new Set());
 
-  // Sync local items with realtime items
+  // Sync local items with realtime items, but keep animating items
   useEffect(() => {
-    setLocalItems(items);
+    // Find items that were in localItems but are no longer in items (deleted by others)
+    const currentIds = new Set(items.map(i => i.id));
+    const toAnimate = localItems.filter(item =>
+      !currentIds.has(item.id) && !deletingItems.has(item.id)
+    );
+
+    if (toAnimate.length > 0) {
+      // Mark them as deleting to trigger animation
+      const newDeleting = new Set(deletingItems);
+      toAnimate.forEach(item => newDeleting.add(item.id));
+      setDeletingItems(newDeleting);
+
+      // After animation, remove from localItems
+      setTimeout(() => {
+        setLocalItems(prev => prev.filter(item => !toAnimate.some(t => t.id === item.id)));
+        setDeletingItems(prev => {
+          const next = new Set(prev);
+          toAnimate.forEach(item => next.delete(item.id));
+          return next;
+        });
+      }, 300);
+    }
+
+    // Add new items that aren't in localItems yet
+    const localIds = new Set(localItems.map(i => i.id));
+    const newItems = items.filter(item => !localIds.has(item.id) && !deletingItems.has(item.id));
+
+    if (newItems.length > 0) {
+      setLocalItems(prev => [...prev, ...newItems]);
+    }
   }, [items]);
 
   const [newItemName, setNewItemName] = useState("");
@@ -131,10 +162,18 @@ export default function DashboardPage() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    // Optimistically remove from local state to trigger animation
-    setLocalItems((prev) => prev.filter((item) => item.id !== itemId));
-    // Then delete from database
-    await supabase.from("items").delete().eq("id", itemId);
+    // Mark as deleting to trigger animation
+    setDeletingItems(prev => new Set(prev).add(itemId));
+    // Remove from local after animation
+    setTimeout(async () => {
+      setLocalItems((prev) => prev.filter((item) => item.id !== itemId));
+      setDeletingItems(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+      await supabase.from("items").delete().eq("id", itemId);
+    }, 300);
   };
 
   const handleLockRound = async () => {
@@ -204,7 +243,18 @@ export default function DashboardPage() {
   };
 
   const handleDeclineRequest = async (itemId: string) => {
-    await supabase.from("items").delete().eq("id", itemId);
+    // Mark as deleting to trigger animation
+    setDeletingItems(prev => new Set(prev).add(itemId));
+    // Remove from local after animation
+    setTimeout(async () => {
+      setLocalItems((prev) => prev.filter((item) => item.id !== itemId));
+      setDeletingItems(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+      await supabase.from("items").delete().eq("id", itemId);
+    }, 300);
   };
 
   const getUserById = (userId: string): User | undefined => {
@@ -330,10 +380,10 @@ export default function DashboardPage() {
                   <motion.div
                     key={item.id}
                     initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    animate={{ opacity: deletingItems.has(item.id) ? 0 : 1, y: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.2, delay: index * 0.03 }}
-                    className="bg-white dark:bg-gray-800 rounded-lg p-3 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow"
+                    className={`bg-white dark:bg-gray-800 rounded-lg p-3 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow ${deletingItems.has(item.id) ? 'opacity-0' : ''}`}
                   >
                     <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -434,12 +484,17 @@ export default function DashboardPage() {
               Aangevraagde Items ({requestedItems.length})
             </h2>
             <div className="space-y-2">
+              <AnimatePresence>
               {requestedItems.map((item) => {
                 const requester = getUserById(item.requested_by_user_id || "");
                 return (
-                  <div
+                  <motion.div
                     key={item.id}
-                    className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 flex items-center justify-between border border-amber-200 dark:border-amber-800"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: deletingItems.has(item.id) ? 0 : 1, y: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
+                    className={`bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 flex items-center justify-between border border-amber-200 dark:border-amber-800 ${deletingItems.has(item.id) ? 'opacity-0' : ''}`}
                   >
                     <div>
                       <div className="flex items-center gap-2">
@@ -486,9 +541,10 @@ export default function DashboardPage() {
                         </button>
                       </div>
                     )}
-                  </div>
+                  </motion.div>
                 );
               })}
+              </AnimatePresence>
               {requestedItems.length === 0 && round?.state === "LOCKED" && (
                 <p className="text-center text-amber-600 dark:text-amber-400 py-2 text-sm">
                   Geen openstaande verzoeken
