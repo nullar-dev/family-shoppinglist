@@ -9,6 +9,7 @@ export function useRealtime(roundId: string | null, currentUser: User | null) {
   const [items, setItems] = useState<Item[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<PresenceState[]>([]);
+  const [deletedItemIds, setDeletedItemIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
@@ -101,7 +102,8 @@ export function useRealtime(roundId: string | null, currentUser: User | null) {
               )
             );
           } else if (payload.eventType === "DELETE") {
-            setItems((prev) => prev.filter((item) => item.id !== payload.old.id));
+            // Keep item in array for animation, but mark as deleted via callback
+            setDeletedItemIds((prev) => [...prev, payload.old.id]);
           }
         }
       )
@@ -139,7 +141,7 @@ export function useRealtime(roundId: string | null, currentUser: User | null) {
     };
   }, [roundId, supabase, currentUser, fetchData]);
 
-  return { round, items, users, onlineUsers, loading, refetch: fetchData };
+  return { round, items, users, onlineUsers, deletedItemIds, clearDeletedItemIds: () => setDeletedItemIds([]), loading, refetch: fetchData };
 }
 
 // Hook to get the current open round with realtime updates

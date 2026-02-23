@@ -14,51 +14,19 @@ import { Item, User } from "@/types";
 export default function DashboardPage() {
   const { user, loading: userLoading, signOut } = useUser();
   const { roundId, loading: roundLoading } = useCurrentRound();
-  const { round, items, users, onlineUsers, loading: dataLoading, refetch } = useRealtime(
+  const { round, items, users, onlineUsers, deletedItemIds, clearDeletedItemIds, loading: dataLoading, refetch } = useRealtime(
     roundId,
     user
   );
-  // Store deleted items with their data for animation
-  const [deletedItemsData, setDeletedItemsData] = useState<Map<string, Item>>(new Map());
-  const [displayItems, setDisplayItems] = useState<Item[]>([]);
-  const prevItemsRef = useRef<Item[]>([]);
 
-  // Sync display items with realtime items
-  useEffect(() => {
-    // Detect deletions - compare prevItemsRef with current items
-    const prevIds = new Set(prevItemsRef.current.map(i => i.id));
-    const currentIds = new Set(items.map(i => i.id));
-    const remoteDeletedIds = [...prevIds].filter(id => !currentIds.has(id));
+  // Track local user deletes for animation (since realtime doesn't send back to self)
+  const [localDeletedIds, setLocalDeletedIds] = useState<string[]>([]);
 
-    // Store deleted item data so we can animate it
-    if (remoteDeletedIds.length > 0) {
-      remoteDeletedIds.forEach(id => {
-        const deletedItem = prevItemsRef.current.find(i => i.id === id);
-        if (deletedItem) {
-          setDeletedItemsData(prev => {
-            const newMap = new Map(prev);
-            newMap.set(id, deletedItem);
-            return newMap;
-          });
-        }
-      });
-    }
+  // Combine local and remote deleted IDs for animation
+  const allDeletedIds = [...new Set([...deletedItemIds, ...localDeletedIds])];
 
-    // Combine current items + deleted items for animation
-    const deletedItems = Array.from(deletedItemsData.values());
-    const combined = [...items, ...deletedItems];
-
-    // Dedupe by ID
-    const unique = combined.filter((item, index, self) =>
-      index === self.findIndex(i => i.id === item.id)
-    );
-
-    setDisplayItems(unique);
-    prevItemsRef.current = items;
-  }, [items, deletedItemsData]);
-
-  // Use display items for rendering
-  const localItems = displayItems;
+  // Simple: use items directly. allDeletedIds tells us what to animate
+  const localItems = items;
 
   const [newItemName, setNewItemName] = useState("");
   const [newItemQuantity, setNewItemQuantity] = useState(1);
@@ -165,22 +133,16 @@ export default function DashboardPage() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    // Get the item data before deleting so we can animate it
-    const itemToDelete = items.find(i => i.id === itemId);
-    if (itemToDelete) {
-      setDeletedItemsData(prev => new Map(prev).set(itemId, itemToDelete));
-    }
+    // Add to local deletes for animation
+    setLocalDeletedIds(prev => [...prev, itemId]);
 
-    // Delete from database - realtime will sync to OTHER users
+    // Delete from database
     await supabase.from("items").delete().eq("id", itemId);
 
-    // After animation, clean up
+    // After animation, clean up local state
     setTimeout(() => {
-      setDeletedItemsData(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(itemId);
-        return newMap;
-      });
+      setLocalDeletedIds(prev => prev.filter(id => id !== itemId));
+      clearDeletedItemIds();
     }, 400);
   };
 
@@ -241,16 +203,7 @@ export default function DashboardPage() {
   };
 
   const handleApproveRequest = async (itemId: string) => {
-    // Trigger animation (update stays in array so this works)
-    setDeletedItemsData(prev => {
-      const item = items.find(i => i.id === itemId);
-      if (item) {
-        const newMap = new Map(prev);
-        newMap.set(itemId, { ...item, status: "active" });
-        return newMap;
-      }
-      return prev;
-    });
+    // Approve is an UPDATE - item stays in array, animation via CSS is automatic
     // Update in database - realtime will sync the status change
     await supabase
       .from("items")
@@ -259,31 +212,17 @@ export default function DashboardPage() {
         requested_by_user_id: null,
       })
       .eq("id", itemId);
-    // Clean up after animation
-    setTimeout(() => {
-      setDeletedItemsData(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(itemId);
-        return newMap;
-      });
-    }, 400);
   };
 
   const handleDeclineRequest = async (itemId: string) => {
-    // Get the item data before deleting so we can animate it
-    const itemToDelete = items.find(i => i.id === itemId);
-    if (itemToDelete) {
-      setDeletedItemsData(prev => new Map(prev).set(itemId, itemToDelete));
-    }
-    // Delete from database - realtime will sync to all users
+    // Add to local deletes for animation
+    setLocalDeletedIds(prev => [...prev, itemId]);
+    // Delete from database
     await supabase.from("items").delete().eq("id", itemId);
     // Clean up after animation
     setTimeout(() => {
-      setDeletedItemsData(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(itemId);
-        return newMap;
-      });
+      setLocalDeletedIds(prev => prev.filter(id => id !== itemId));
+      clearDeletedItemIds();
     }, 400);
   };
 
@@ -410,10 +349,10 @@ export default function DashboardPage() {
                   <motion.div
                     key={item.id}
                     initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: deletedItemsData.has(item.id) ? 0 : 1, y: 0 }}
+                    animate={{ opacity: allDeletedIds.includes(item.id) ? 0 : 1, y: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.2, delay: index * 0.03 }}
-                    className={`bg-white dark:bg-gray-800 rounded-lg p-3 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow ${deletedItemsData.has(item.id) ? 'opacity-0' : ''}`}
+                    className={`bg-white dark:bg-gray-800 rounded-lg p-3 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow ${allDeletedIds.includes(item.id) ? 'opacity-0' : ''}`}
                   >
                     <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -521,10 +460,10 @@ export default function DashboardPage() {
                   <motion.div
                     key={item.id}
                     initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: deletedItemsData.has(item.id) ? 0 : 1, y: 0 }}
+                    animate={{ opacity: allDeletedIds.includes(item.id) ? 0 : 1, y: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.2 }}
-                    className={`bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 flex items-center justify-between border border-amber-200 dark:border-amber-800 ${deletedItemsData.has(item.id) ? 'opacity-0' : ''}`}
+                    className={`bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 flex items-center justify-between border border-amber-200 dark:border-amber-800 ${allDeletedIds.includes(item.id) ? 'opacity-0' : ''}`}
                   >
                     <div>
                       <div className="flex items-center gap-2">
