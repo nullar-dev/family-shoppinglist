@@ -65,6 +65,32 @@ export function UserProvider({ children }: { children: ReactNode }) {
     checkUser();
   }, [validateSession]);
 
+  // Periodic session validation (every 30 seconds)
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(async () => {
+      const storedSessionId = localStorage.getItem("gezins_session_id");
+      if (!storedSessionId) return;
+
+      const { data } = await supabase
+        .from("users")
+        .select("session_id")
+        .eq("id", user.id)
+        .single();
+
+      if (data && data.session_id !== storedSessionId) {
+        // Session invalidated by another login
+        localStorage.removeItem("gezins_user");
+        localStorage.removeItem("gezins_session_id");
+        setUser(null);
+        window.location.href = "/login";
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [user, supabase]);
+
   // Subscribe to realtime session changes
   useEffect(() => {
     if (!user) return;
