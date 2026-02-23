@@ -50,8 +50,10 @@ export default function DashboardPage() {
   const canShop = (round?.state === "OPEN") || (round?.state === "LOCKED" && isShopper);
   // canRequest: can only request items (non-shoppers when LOCKED)
   const canRequest = round?.state === "LOCKED" && !isShopper && user;
-  // canToggleCart: only the shopper can mark items as in-cart (only when someone is shopping)
+  // canToggleCart: only the SHOPPER can mark items as in-cart (when someone is shopping)
   const canToggleCart = isShopper && isSomeoneShopping;
+  // canToggleCartVisible: toggle is visible to everyone, but only shopper can use it
+  const canToggleCartVisible = isSomeoneShopping;
 
   // Enable notifications
   useNotifications({ roundId, currentUser: user });
@@ -394,18 +396,20 @@ export default function DashboardPage() {
                       €{item.estimated_price.toFixed(2)}
                     </span>
                   )}
-                  {/* In-cart status visible to everyone, toggle only for shopper */}
+                  {/* In-cart toggle: visible to everyone, only shopper can toggle when shopping */}
                   <button
                     onClick={() => canToggleCart && handleToggleInCart(item)}
-                    disabled={!canToggleCart}
+                    disabled={!canToggleCartVisible || !canToggleCart}
                     className={`p-1.5 rounded ${
                       item.is_in_cart
                         ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
                         : canToggleCart
                         ? "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        : canToggleCartVisible
+                        ? "text-gray-300 dark:text-gray-600 cursor-not-allowed"
                         : "text-gray-200 dark:text-gray-700 cursor-not-allowed"
                     }`}
-                    title={item.is_in_cart ? "In winkelwagen" : (canToggleCart ? "In winkelwagen" : "Alleen shopper kan dit wijzigen")}
+                    title={!canToggleCartVisible ? "Niemand koopt" : (item.is_in_cart ? "In winkelwagen" : (canToggleCart ? "In winkelwagen" : "Alleen shopper kan dit wijzigen"))}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
