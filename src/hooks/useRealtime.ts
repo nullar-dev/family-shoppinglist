@@ -93,6 +93,7 @@ export function useRealtime(roundId: string | null, currentUser: User | null) {
           filter: `round_id=eq.${roundId}`,
         },
         (payload) => {
+          console.log("📡 Realtime event:", payload.eventType, payload);
           if (payload.eventType === "INSERT") {
             setItems((prev) => [...prev, payload.new as Item]);
           } else if (payload.eventType === "UPDATE") {
