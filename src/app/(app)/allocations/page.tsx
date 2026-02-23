@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/contexts/UserContext";
 import { createClient } from "@/lib/supabase/client";
 import { Round, Item, User, Allocation } from "@/types";
 
-export default function AllocationsPage() {
+function AllocationsContent() {
   const { user, loading: userLoading, signOut } = useUser();
   const [round, setRound] = useState<Round | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -363,5 +363,17 @@ export default function AllocationsPage() {
         </div>
       </nav>
     </div>
+  );
+}
+
+export default function AllocationsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    }>
+      <AllocationsContent />
+    </Suspense>
   );
 }
