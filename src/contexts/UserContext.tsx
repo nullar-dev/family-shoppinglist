@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { User } from "@/types";
 
@@ -18,42 +18,84 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
+  // Validate session against database
+  const validateSession = useCallback(async () => {
+    const storedUser = localStorage.getItem("gezins_user");
+    const storedSessionId = localStorage.getItem("gezins_session_id");
+
+    if (!storedUser || !storedSessionId) {
+      return false;
+    }
+
+    const parsedUser = JSON.parse(storedUser);
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("session_id")
+      .eq("id", parsedUser.id)
+      .single();
+
+    if (error || !data) {
+      // User not found, clear session
+      localStorage.removeItem("gezins_user");
+      localStorage.removeItem("gezins_session_id");
+      setUser(null);
+      return false;
+    }
+
+    if (data.session_id !== storedSessionId) {
+      // Session ID doesn't match - another device logged in
+      localStorage.removeItem("gezins_user");
+      localStorage.removeItem("gezins_session_id");
+      setUser(null);
+      return false;
+    }
+
+    // Session valid
+    setUser(parsedUser);
+    return true;
+  }, [supabase]);
+
+  // Initial session check
   useEffect(() => {
-    // Check for existing session and validate it
     const checkUser = async () => {
-      const storedUser = localStorage.getItem("gezins_user");
-      const storedSessionId = localStorage.getItem("gezins_session_id");
-
-      if (storedUser && storedSessionId) {
-        const parsedUser = JSON.parse(storedUser);
-
-        // Validate session against database
-        const { data, error } = await supabase
-          .from("users")
-          .select("session_id")
-          .eq("id", parsedUser.id)
-          .single();
-
-        if (error || !data) {
-          // User not found, clear session
-          localStorage.removeItem("gezins_user");
-          localStorage.removeItem("gezins_session_id");
-        } else if (data.session_id !== storedSessionId) {
-          // Session ID doesn't match - another device logged in
-          localStorage.removeItem("gezins_user");
-          localStorage.removeItem("gezins_session_id");
-          setUser(null);
-          setLoading(false);
-          return;
-        } else {
-          // Session valid
-          setUser(parsedUser);
-        }
-      }
+      await validateSession();
       setLoading(false);
     };
     checkUser();
-  }, [supabase]);
+  }, [validateSession]);
+
+  // Subscribe to realtime session changes
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`session-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "users",
+          filter: `id=eq.${user.id}`,
+        },
+        (payload) => {
+          // Check if session_id changed
+          const storedSessionId = localStorage.getItem("gezins_session_id");
+          if (payload.new && payload.new.session_id !== storedSessionId) {
+            // Another device logged in - force logout
+            localStorage.removeItem("gezins_user");
+            localStorage.removeItem("gezins_session_id");
+            setUser(null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, supabase]);
 
   const signIn = async (name: string, pin: string) => {
     try {
@@ -95,6 +137,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // Clear local session
     localStorage.removeItem("gezins_user");
     localStorage.removeItem("gezins_session_id");
     setUser(null);
