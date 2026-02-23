@@ -52,6 +52,16 @@ export default function DashboardPage() {
   const canToggleCart = isShopper && isSomeoneShopping;
   // canToggleCartVisible: toggle is visible to everyone, but only shopper can use it
   const canToggleCartVisible = isSomeoneShopping;
+  // canDeleteItem: in OPEN state user can delete their own items, in LOCKED only shopper can delete
+  const canDeleteItem = (item: Item) => {
+    if (!user) return false;
+    if (!isSomeoneShopping) {
+      // OPEN state: user can delete their own items
+      return item.created_by_user_id === user.id;
+    }
+    // LOCKED state: only shopper can delete
+    return isShopper;
+  };
 
   // Enable notifications
   useNotifications({ roundId, currentUser: user });
@@ -378,8 +388,8 @@ export default function DashboardPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
                   </button>
-                  {/* Delete button only visible to shopper */}
-                  {canToggleCart && (
+                  {/* Delete button: OPEN = own items, LOCKED = only shopper */}
+                  {canDeleteItem(item) && (
                     <button
                       onClick={() => handleDeleteItem(item.id)}
                       className="p-1.5 text-gray-400 hover:text-red-500"
