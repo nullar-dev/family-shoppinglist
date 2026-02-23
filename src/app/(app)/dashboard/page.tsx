@@ -45,12 +45,13 @@ export default function DashboardPage() {
   const purchasedItems = items.filter((item) => item.is_purchased);
 
   const isShopper = round?.locked_by_user_id === user?.id;
+  const isSomeoneShopping = round?.state === "LOCKED";
   // canShop: can add items directly (anyone in OPEN, shopper in LOCKED)
   const canShop = (round?.state === "OPEN") || (round?.state === "LOCKED" && isShopper);
   // canRequest: can only request items (non-shoppers when LOCKED)
   const canRequest = round?.state === "LOCKED" && !isShopper && user;
-  // canToggleCart: only the shopper can mark items as in-cart
-  const canToggleCart = isShopper;
+  // canToggleCart: only the shopper can mark items as in-cart (only when someone is shopping)
+  const canToggleCart = isShopper && isSomeoneShopping;
 
   // Enable notifications
   useNotifications({ roundId, currentUser: user });
@@ -504,8 +505,30 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {/* Purchased Items */}
-        {purchasedItems.length > 0 && (
+        {/* In Winkelwagen - only show when someone is shopping */}
+        {isSomeoneShopping && items.filter(i => i.is_in_cart && !i.is_purchased).length > 0 && (
+          <section className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">
+              In winkelwagen ({items.filter(i => i.is_in_cart && !i.is_purchased).length})
+            </h2>
+            <div className="space-y-2 opacity-60">
+              {items.filter(i => i.is_in_cart && !i.is_purchased).map((item) => (
+                <div key={item.id} className="bg-white dark:bg-gray-800 rounded-lg p-3 flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
+                  {item.quantity > 1 && <span className="text-xs text-gray-400">x{item.quantity}</span>}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Gekocht - only show when someone is shopping */}
+        {isSomeoneShopping && purchasedItems.length > 0 && (
           <section className="mb-6">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">
               Gekocht ({purchasedItems.length})
