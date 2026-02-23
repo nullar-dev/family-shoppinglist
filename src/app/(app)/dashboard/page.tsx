@@ -54,13 +54,18 @@ export default function DashboardPage() {
   const canToggleCartVisible = isSomeoneShopping;
   // canDeleteItem: in OPEN state user can delete their own items, in LOCKED only shopper can delete
   const canDeleteItem = (item: Item) => {
+    console.log("canDeleteItem check:", { userId: user?.id, itemOwnerId: item.created_by_user_id, isSomeoneShopping, isShopper });
     if (!user) return false;
     if (!isSomeoneShopping) {
       // OPEN state: user can delete their own items
-      return item.created_by_user_id === user.id;
+      const canDelete = item.created_by_user_id === user.id;
+      console.log("OPEN state - canDelete:", canDelete);
+      return canDelete;
     }
     // LOCKED state: only shopper can delete
-    return isShopper;
+    const canDelete = isShopper;
+    console.log("LOCKED state - canDelete:", canDelete);
+    return canDelete;
   };
 
   // Enable notifications
@@ -123,7 +128,11 @@ export default function DashboardPage() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    await supabase.from("items").delete().eq("id", itemId);
+    console.log("Deleting item:", itemId);
+    const { error } = await supabase.from("items").delete().eq("id", itemId);
+    if (error) {
+      console.error("Delete error:", error);
+    }
   };
 
   const handleLockRound = async () => {
