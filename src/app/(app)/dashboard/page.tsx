@@ -41,7 +41,6 @@ export default function DashboardPage() {
   // Separate requested items from active items
   const requestedItems = items.filter((item) => item.status === "requested");
   const activeItems = items.filter((item) => item.status === "active");
-  const purchasedItems = items.filter((item) => item.is_purchased);
 
   const isShopper = round?.locked_by_user_id === user?.id;
   const isSomeoneShopping = round?.state === "LOCKED";
@@ -104,13 +103,6 @@ export default function DashboardPage() {
     } else {
       await supabase.from("items").update({ quantity: newQuantity }).eq("id", item.id);
     }
-  };
-
-  const handleTogglePurchased = async (item: Item) => {
-    await supabase
-      .from("items")
-      .update({ is_purchased: !item.is_purchased })
-      .eq("id", item.id);
   };
 
   const handleToggleInCart = async (item: Item) => {
@@ -181,16 +173,11 @@ export default function DashboardPage() {
   };
 
   const handleApproveRequest = async (itemId: string) => {
-    // Ask for actual price when approving
-    const price = prompt("Wat is de werkelijke prijs? (optioneel)");
-    const actualPrice = price ? parseFloat(price) : null;
-
     await supabase
       .from("items")
       .update({
         status: "active",
         requested_by_user_id: null,
-        estimated_price: actualPrice
       })
       .eq("id", itemId);
   };
@@ -322,34 +309,13 @@ export default function DashboardPage() {
                     transition={{ duration: 0.2, delay: index * 0.03 }}
                     className="bg-white dark:bg-gray-800 rounded-lg p-3 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow"
                   >
-                    <button
-                      onClick={() => handleTogglePurchased(item)}
-                      className={`w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                        item.is_purchased
-                          ? "bg-green-500 border-green-500 scale-110"
-                          : "border-gray-300 dark:border-gray-600 hover:border-green-400"
-                      }`}
-                    >
-                      {item.is_purchased && (
-                        <motion.svg
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="w-4 h-4 text-white"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </motion.svg>
-                      )}
-                    </button>
-                  <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={`text-gray-900 dark:text-white ${item.is_purchased ? "line-through" : ""}`}>
+                      <span className="text-gray-900 dark:text-white">
                         {item.name}
                       </span>
                       {/* Quantity controls for item owner */}
-                      {item.created_by_user_id === user?.id && !item.is_purchased && (
+                      {item.created_by_user_id === user?.id && (
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => handleUpdateQuantity(item, -1)}
@@ -507,13 +473,13 @@ export default function DashboardPage() {
         )}
 
         {/* In Winkelwagen - only show when someone is shopping */}
-        {isSomeoneShopping && items.filter(i => i.is_in_cart && !i.is_purchased).length > 0 && (
+        {isSomeoneShopping && items.filter(i => i.is_in_cart).length > 0 && (
           <section className="mb-6">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">
-              In winkelwagen ({items.filter(i => i.is_in_cart && !i.is_purchased).length})
+              In winkelwagen ({items.filter(i => i.is_in_cart).length})
             </h2>
             <div className="space-y-2 opacity-60">
-              {items.filter(i => i.is_in_cart && !i.is_purchased).map((item) => (
+              {items.filter(i => i.is_in_cart).map((item) => (
                 <div key={item.id} className="bg-white dark:bg-gray-800 rounded-lg p-3 flex items-center gap-3">
                   <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
                     <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -522,33 +488,6 @@ export default function DashboardPage() {
                   </div>
                   <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
                   {item.quantity > 1 && <span className="text-xs text-gray-400">x{item.quantity}</span>}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Gekocht - only show when someone is shopping */}
-        {isSomeoneShopping && purchasedItems.length > 0 && (
-          <section className="mb-6">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">
-              Gekocht ({purchasedItems.length})
-            </h2>
-            <div className="space-y-2 opacity-60">
-              {purchasedItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-white dark:bg-gray-800 rounded-lg p-3 flex items-center gap-3"
-                >
-                  <div className="w-6 h-6 rounded-full border-2 border-green-500 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <span className="text-gray-500 line-through">{item.name}</span>
-                  {item.quantity > 1 && (
-                    <span className="text-xs text-gray-400">x{item.quantity}</span>
-                  )}
                 </div>
               ))}
             </div>
