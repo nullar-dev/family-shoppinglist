@@ -108,7 +108,9 @@ export function useRealtime(roundId: string | null, currentUser: User | null) {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("📡 Items channel subscription status:", status);
+      });
 
     // Presence channel for online users (per round to avoid conflicts)
     const presenceChannel = supabase.channel(`presence-${roundId}`);
