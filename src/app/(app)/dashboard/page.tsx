@@ -18,70 +18,35 @@ export default function DashboardPage() {
     roundId,
     user
   );
-  // Local state for items - mirrors realtime items but allows animation
-  const [localItems, setLocalItems] = useState<Item[]>([]);
-  // Track items that are being deleted (for animation)
+  // Local state - track which items are being deleted for animation
   const [deletingItems, setDeletingItems] = useState<string[]>([]);
 
-  // Sync with realtime items - handles both local and remote deletes
+  // Track previous items to detect changes from realtime
+  const prevItemsRef = useRef<Item[]>([]);
+
   useEffect(() => {
-    // Skip if still loading
-    if (!items.length && !localItems.length) {
-      setLocalItems(items);
-      return;
-    }
-
+    // Detect what changed between previous and current items
+    const prevIds = new Set(prevItemsRef.current.map(i => i.id));
     const currentIds = new Set(items.map(i => i.id));
-    const localIds = new Set(localItems.map(i => i.id));
 
-    // Find items to delete (in local but not in realtime - deleted by someone)
-    const toDelete = localItems.filter(item => !currentIds.has(item.id));
+    // Find items that were deleted by someone else
+    const deletedIds = [...prevIds].filter(id => !currentIds.has(id));
 
-    // Find items to add (in realtime but not in local - added by someone)
-    const toAdd = items.filter(item => !localIds.has(item.id));
-
-    // Handle deletes with animation
-    if (toDelete.length > 0) {
-      // Add to deletingItems if not already
-      const newDeleteIds = toDelete.map(t => t.id).filter(id => !deletingItems.includes(id));
-      if (newDeleteIds.length > 0) {
-        setDeletingItems(prev => [...prev, ...newDeleteIds]);
-
-        // After animation, remove from localItems
-        setTimeout(() => {
-          setLocalItems(prev => prev.filter(item => !toDelete.some(t => t.id === item.id)));
-          setDeletingItems(prev => prev.filter(id => !toDelete.some(t => t.id === id)));
-        }, 400);
-      }
+    if (deletedIds.length > 0) {
+      // Animate the deletion for other users
+      setDeletingItems(prev => [...prev, ...deletedIds]);
+      // Remove from deleting after animation
+      setTimeout(() => {
+        setDeletingItems(prev => prev.filter(id => !deletedIds.includes(id)));
+      }, 300);
     }
 
-    // Handle new items
-    if (toAdd.length > 0) {
-      setLocalItems(prev => [...prev, ...toAdd]);
-    }
-
-    // Handle status updates (e.g., requested -> active) with animation
-    const toUpdate = localItems.filter(item => {
-      const realtimeItem = items.find(i => i.id === item.id);
-      return realtimeItem && realtimeItem.status !== item.status;
-    });
-
-    if (toUpdate.length > 0) {
-      const updateIds = toUpdate.map(t => t.id).filter(id => !deletingItems.includes(id));
-      if (updateIds.length > 0) {
-        // Trigger fade animation for status change
-        setDeletingItems(prev => [...prev, ...updateIds]);
-        setTimeout(() => {
-          // Update the items in place
-          setLocalItems(prev => prev.map(item => {
-            const updated = items.find(i => i.id === item.id);
-            return updated || item;
-          }));
-          setDeletingItems(prev => prev.filter(id => !updateIds.includes(id)));
-        }, 400);
-      }
-    }
+    // Update previous items ref
+    prevItemsRef.current = items;
   }, [items]);
+
+  // Use items directly
+  const localItems = items;
 
   const [newItemName, setNewItemName] = useState("");
   const [newItemQuantity, setNewItemQuantity] = useState(1);
@@ -188,11 +153,9 @@ export default function DashboardPage() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    // Mark as deleting to trigger animation (for all users)
-    setDeletingItems(prev => [...prev, itemId]);
     // Delete from database - realtime will sync to all users
+    // The sync effect will detect the deletion and trigger animation for everyone
     await supabase.from("items").delete().eq("id", itemId);
-    // Sync effect will handle removing from localItems after animation
   };
 
   const handleLockRound = async () => {
@@ -252,8 +215,6 @@ export default function DashboardPage() {
   };
 
   const handleApproveRequest = async (itemId: string) => {
-    // Mark as deleting to trigger animation (item moves to active list)
-    setDeletingItems(prev => [...prev, itemId]);
     // Update in database - realtime will sync the status change
     await supabase
       .from("items")
@@ -262,12 +223,9 @@ export default function DashboardPage() {
         requested_by_user_id: null,
       })
       .eq("id", itemId);
-    // Sync effect will handle removing from deletingItems
   };
 
   const handleDeclineRequest = async (itemId: string) => {
-    // Mark as deleting to trigger animation
-    setDeletingItems(prev => [...prev, itemId]);
     // Delete from database - realtime will sync to all users
     await supabase.from("items").delete().eq("id", itemId);
   };
