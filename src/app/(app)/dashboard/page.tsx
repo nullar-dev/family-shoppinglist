@@ -25,30 +25,36 @@ export default function DashboardPage() {
 
   // Sync display items with realtime items and detect remote deletions
   useEffect(() => {
-    // Detect if any items were deleted by OTHER users
+    // Detect deletions via comparison
     const prevIds = new Set(prevItemsRef.current.map(i => i.id));
     const currentIds = new Set(items.map(i => i.id));
-
-    // Find items that disappeared (deleted by someone else)
     const remoteDeletedIds = [...prevIds].filter(id => !currentIds.has(id));
 
-    // Animate remote deletions too
+    // Animate remote deletions
     if (remoteDeletedIds.length > 0) {
       const newDeletions = remoteDeletedIds.filter(id => !deletingItems.includes(id));
       if (newDeletions.length > 0) {
         setDeletingItems(prev => [...prev, ...newDeletions]);
         setTimeout(() => {
           setDeletingItems(prev => prev.filter(id => !newDeletions.includes(id)));
-        }, 300);
+        }, 350);
       }
     }
 
-    // Update display items (filter out items being deleted)
-    setDisplayItems(items.filter(item => !deletingItems.includes(item.id)));
+    // KEY FIX: Keep items being deleted in displayItems for animation
+    const deletedItems = prevItemsRef.current.filter(item => deletingItems.includes(item.id));
 
-    // Update ref for next comparison
+    // Combine current items + items being deleted (for animation)
+    const combined = [...items, ...deletedItems];
+
+    // Dedupe by ID
+    const unique = combined.filter((item, index, self) =>
+      index === self.findIndex(i => i.id === item.id)
+    );
+
+    setDisplayItems(unique);
     prevItemsRef.current = items;
-  }, [items]);
+  }, [items, deletingItems]);
 
   // Use display items for rendering
   const localItems = displayItems;
