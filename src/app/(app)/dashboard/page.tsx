@@ -233,13 +233,23 @@ export default function DashboardPage() {
   };
 
   const handleApproveRequest = async (itemId: string) => {
-    await supabase
-      .from("items")
-      .update({
-        status: "active",
-        requested_by_user_id: null,
-      })
-      .eq("id", itemId);
+    // Mark as deleting to trigger animation
+    setDeletingItems(prev => new Set(prev).add(itemId));
+    // After animation, update status in database
+    setTimeout(async () => {
+      await supabase
+        .from("items")
+        .update({
+          status: "active",
+          requested_by_user_id: null,
+        })
+        .eq("id", itemId);
+      setDeletingItems(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }, 300);
   };
 
   const handleDeclineRequest = async (itemId: string) => {
